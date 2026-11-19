@@ -54,22 +54,35 @@ export const BookingForm: React.FC = () => {
     setMessage('');
 
     try {
-      const { error } = await supabase.from('bookings').insert([
+      // Ищем текстовое название услуги
+      const serviceObj = services.find((s) => s.id === selectedService);
+      const serviceName = serviceObj ? serviceObj.name : selectedService;
+
+      // Формируем ISO дату для start_time (на случай если база требует timestamptz)
+      let startTime = null;
+      if (date && time) {
+        startTime = new Date(`${date}T${time}:00`).toISOString();
+      }
+
+      const { data, error } = await supabase.from('bookings').insert([
         {
-          service_id: selectedService,
+          service_name: serviceName,
           client_name: clientName,
           client_phone: clientPhone,
           car_model: carModel,
           booking_date: date,
           booking_time: time,
+          start_time: startTime,
           status: 'pending',
         },
-      ]);
+      ]).select();
 
       if (error) {
-        console.warn('Booking insertion notice:', error);
+        console.error('Supabase booking error:', error);
+        throw error;
       }
 
+      console.log('Booking created successfully:', data);
       setStatus('success');
       setMessage('✅ Заявка принята! Мы перезвоним вам в течение 10 минут для подтверждения.');
       setSelectedService('');
@@ -78,10 +91,14 @@ export const BookingForm: React.FC = () => {
       setCarModel('');
       setDate('');
       setTime('');
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Failed to submit booking:', err);
       setStatus('error');
-      setMessage('Ошибка отправки. Пожалуйста, позвоните нам: 8 (938) 349-99-86');
+      setMessage(
+        err?.message 
+          ? `Ошибка сохранения: ${err.message}` 
+          : 'Не удалось отправить заявку. Пожалуйста, позвоните нам: 8 (938) 349-99-86'
+      );
     }
   };
 
@@ -163,7 +180,7 @@ export const BookingForm: React.FC = () => {
         <Button
           type="submit"
           disabled={status === 'loading'}
-          className="w-full mt-2 py-3.5 bg-gradient-to-r from-[#00f0ff] via-[#00a6ff] to-[#0070f3] active:opacity-90 text-black font-black uppercase text-xs tracking-wider rounded-xl shadow-lg shadow-[#00f0ff]/25"
+          className="w-full mt-2 py-3.5 bg-gradient-to-r from-[#00f0ff] via-[#00a6ff] to-[#0070f3] active:opacity-90 text-black font-black uppercase text-xs tracking-wider rounded-xl shadow-lg shadow-[#00f0ff]/25 cursor-pointer disabled:opacity-50"
         >
           {status === 'loading' ? 'Отправка...' : 'Забронировать бокс'}
         </Button>
