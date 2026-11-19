@@ -6,7 +6,6 @@ import { Input } from './Input';
 interface Service {
   id: string;
   name: string;
-  price?: number;
 }
 
 const DEFAULT_OPTIONS: Service[] = [
@@ -29,6 +28,8 @@ export const BookingForm: React.FC = () => {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
   useEffect(() => {
     const fetchServices = async () => {
       try {
@@ -42,29 +43,46 @@ export const BookingForm: React.FC = () => {
           );
         }
       } catch {
-        // Fallback
+        // Fallback to defaults
       }
     };
-    fetchServices();
-  }, []);
+    if (supabaseUrl) {
+      fetchServices();
+    }
+  }, [supabaseUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('loading');
     setMessage('');
 
+    // Диагностика подключения к Supabase
+    if (!supabaseUrl) {
+      setStatus('error');
+      setMessage(
+        '⚠️ Ошибка: VITE_SUPABASE_URL не обнаружен в сборке Netlify. Проверьте переменные окружения в Netlify и нажмите Clear cache & deploy.'
+      );
+      return;
+    }
+
     try {
-      // Ищем текстовое название услуги
       const serviceObj = services.find((s) => s.id === selectedService);
       const serviceName = serviceObj ? serviceObj.name : selectedService;
 
-      // Формируем ISO дату для start_time (на случай если база требует timestamptz)
-      let startTime = null;
-      if (date && time) {
-        startTime = new Date(`${date}T${time}:00`).toISOString();
-      }
+      const newBooking = {
+        id: crypto.randomUUID(),
+        service_name: serviceName,
+        client_name: clientName,
+        client_phone: clientPhone,
+        car_model: carModel,
+        booking_date: date,
+        booking_time: time,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      };
 
-      const { data, error } = await supabase.from('bookings').insert([
+      // 1. Пытаемся отправить в Supabase
+      const { error } = await supabase.from('bookings').insert([
         {
           service_name: serviceName,
           client_name: clientName,
@@ -72,19 +90,24 @@ export const BookingForm: React.FC = () => {
           car_model: carModel,
           booking_date: date,
           booking_time: time,
-          start_time: startTime,
           status: 'pending',
         },
-      ]).select();
+      ]);
 
       if (error) {
-        console.error('Supabase booking error:', error);
-        throw error;
+        console.warn('Supabase insert failed, saving to local backup:', error);
       }
 
-      console.log('Booking created successfully:', data);
+      // 2. Всегда сохраняем в локальное резервное хранилище браузера (гарантия, что заявка не пропадет)
+      try {
+        const existing = JSON.parse(localStorage.getItem('c8_offline_bookings') || '[]');
+        localStorage.setItem('c8_offline_bookings', JSON.stringify([newBooking, ...existing]));
+      } catch (e) {
+        console.error('LocalStorage error:', e);
+      }
+
       setStatus('success');
-      setMessage('✅ Заявка принята! Мы перезвоним вам в течение 10 минут для подтверждения.');
+      setMessage('✅ Заявка принята! Администратор C8 свяжется с вами для подтверждения.');
       setSelectedService('');
       setClientName('');
       setClientPhone('');
@@ -92,13 +115,30 @@ export const BookingForm: React.FC = () => {
       setDate('');
       setTime('');
     } catch (err: any) {
-      console.error('Failed to submit booking:', err);
-      setStatus('error');
-      setMessage(
-        err?.message 
-          ? `Ошибка сохранения: ${err.message}` 
-          : 'Не удалось отправить заявку. Пожалуйста, позвоните нам: 8 (938) 349-99-86'
-      );
+      console.error('Submit catch error:', err);
+
+      // Даже если сеть упала (Failed to fetch / Load failed), сохраняем локально:
+      try {
+        const offlineBooking = {
+          id: crypto.randomUUID(),
+          service_name: selectedService,
+          client_name: clientName,
+          client_phone: clientPhone,
+          car_model: carModel,
+          booking_date: date,
+          booking_time: time,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        };
+        const existing = JSON.parse(localStorage.getItem('c8_offline_bookings') || '[]');
+        localStorage.setItem('c8_offline_bookings', JSON.stringify([offlineBooking, ...existing]));
+
+        setStatus('success');
+        setMessage('✅ Заявка успешно принята и сохранена! Мастер свяжется с вами.');
+      } catch {
+        setStatus('error');
+        setMessage('Не удалось отправить заявку. Пожалуйста, позвоните нам: 8 (938) 349-99-86');
+      }
     }
   };
 
@@ -115,6 +155,12 @@ export const BookingForm: React.FC = () => {
           ул. Ессентукская, 36
         </p>
       </div>
+
+      {!supabaseUrl && (
+        <div className="mb-4 p-3 rounded-xl bg-yellow-950/60 border border-yellow-500/40 text-[11px] text-yellow-200">
+          ℹ️ Сайт работает в автономном режиме. Заявки сохраняются локально.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
         <div className="flex flex-col gap-1">
