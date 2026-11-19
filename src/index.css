@@ -1,11 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  --color-deep-blue: #0a192f;
-  --color-neon-cyan: #64ffda;
+  --color-c8-bg: #030712;
+  --color-c8-card: #091326;
+  --color-c8-border: rgba(34, 211, 238, 0.2);
+  --color-c8-neon: #00f0ff;
+  --color-c8-blue: #0070f3;
 }
 
-body {
-  background-color: var(--color-deep-blue);
-  color: white;
+@layer base {
+  body {
+    background-color: #030712;
+    color: #f8fafc;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Эффект свечения и градиентов */
+.neon-glow {
+  text-shadow: 0 0 15px rgba(0, 240, 255, 0.6), 0 0 30px rgba(0, 112, 243, 0.4);
+}
+
+.neon-border {
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.15), inset 0 0 20px rgba(0, 240, 255, 0.05);
+}
+
+.neon-box-glow {
+  box-shadow: 0 0 40px -10px rgba(0, 240, 255, 0.4);
+}
+
+/* Стекло (Liquid Glass) */
+.glass-panel {
+  background: rgba(10, 25, 47, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 240, 255, 0.18);
 }
